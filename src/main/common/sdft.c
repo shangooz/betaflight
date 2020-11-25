@@ -18,7 +18,6 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <math.h>
 #include <stdbool.h>
 
 #include "platform.h"
@@ -26,9 +25,10 @@
 #include "common/maths.h"
 #include "common/sdft.h"
 
+#define SDFT_DAMPING 0.9999f         // damping factor for guaranteed SDFT stability (<1.0f) 
+
+static FAST_DATA_ZERO_INIT float     dampingPow;  // SDFT_DAMPING to the power of SDFT_SAMPLE_SIZE
 static FAST_DATA_ZERO_INIT bool      isInitialized;
-static FAST_DATA_ZERO_INIT float     dampingFactor;
-static FAST_DATA_ZERO_INIT float     r_to_n;
 static FAST_DATA_ZERO_INIT complex_t twiddle[SDFT_BIN_COUNT];
 
 static void applySqrt(const sdft_t *sdft, float *data);
@@ -37,13 +37,12 @@ static void applySqrt(const sdft_t *sdft, float *data);
 void sdftInit(sdft_t *sdft, const uint8_t startBin, const uint8_t endBin)
 {
     if (!isInitialized) {
-        dampingFactor = nexttowardf(1.0f, 0.0f);
-        r_to_n = powf(dampingFactor, SDFT_SAMPLE_SIZE);
+        dampingPow = powerf(SDFT_DAMPING, SDFT_SAMPLE_SIZE);
         const float c = 2.0f * M_PIf / (float)SDFT_SAMPLE_SIZE;
         float phi = 0.0f;
         for (uint8_t i = 0; i < SDFT_BIN_COUNT; i++) {
             phi = c*i;
-            twiddle[i] = cos_approx(phi) + _Complex_I * sin_approx(phi);
+            twiddle[i] = SDFT_DAMPING * (cos_approx(phi) + _Complex_I * sin_approx(phi));
         }
         isInitialized = true;
     }
@@ -65,14 +64,36 @@ void sdftInit(sdft_t *sdft, const uint8_t startBin, const uint8_t endBin)
 // Add new sample to frequency spectrum
 FAST_CODE void sdftPush(sdft_t *sdft, const float sample)
 {
-    const float delta = sample - r_to_n * sdft->samples[sdft->idx];
+    const float delta = sample - dampingPow * sdft->samples[sdft->idx];
     sdft->samples[sdft->idx] = sample;
 
     for (uint8_t i = sdft->startBin; i <= sdft->endBin; i++) {
-        sdft->data[i] = twiddle[i] * (dampingFactor * sdft->data[i] + delta);
+        sdft->data[i] = twiddle[i] * (sdft->data[i] + delta);
     }
 
     sdft->idx = (sdft->idx + 1) % SDFT_SAMPLE_SIZE;
+}
+
+
+// Add new sample to frequency spectrum in parts
+FAST_CODE void sdftPushBatch(sdft_t* sdft, const float sample, const uint8_t numBatches, const uint8_t batchIdx)
+{
+    uint8_t batchSize = (sdft->endBin - sdft->startBin + 1) / numBatches + 1;
+    const uint8_t batchStart = batchSize * batchIdx;
+
+    const float delta = sample - dampingPow * sdft->samples[sdft->idx];
+
+    if (batchIdx == numBatches - 1) {
+        batchSize = sdft->endBin - batchStart + 1;
+        sdft->samples[sdft->idx] = sample;
+        sdft->idx = (sdft->idx + 1) % SDFT_SAMPLE_SIZE;
+    }
+
+    const uint8_t batchEnd = batchStart + batchSize;
+
+    for (uint8_t i = batchStart; i < batchEnd; i++) {
+        sdft->data[i] = twiddle[i] * (sdft->data[i] + delta);
+    }
 }
 
 
@@ -106,7 +127,7 @@ FAST_CODE void sdftWinSq(const sdft_t *sdft, float *output)
     float im;
 
     for (uint8_t i = (sdft->startBin + 1); i < sdft->endBin; i++) {
-        val = 0.5f * sdft->data[i] - 0.25f * sdft->data[i - 1] - 0.25f * sdft->data[i + 1];
+        val = 2.0f * sdft->data[i] - sdft->data[i - 1] - sdft->data[i + 1];
         re = crealf(val);
         im = cimagf(val);
         output[i] = re * re + im * im;

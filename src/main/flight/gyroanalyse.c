@@ -79,7 +79,7 @@
 // Usable bandwidth is half this, ie 666Hz if sdftSampleRateHz is 1333Hz, i.e. bin 1 is 13.3Hz, bin 2 is 26.7Hz etc
 
 #define DYN_NOTCH_SMOOTH_HZ        4
-#define DYN_NOTCH_CALC_TICKS       (XYZ_AXIS_COUNT * 4) // 4 steps per axis
+#define DYN_NOTCH_CALC_TICKS       (XYZ_AXIS_COUNT * 3) // 3 steps per axis
 #define DYN_NOTCH_OSD_MIN_THROTTLE 20
 
 static sdft_t FAST_DATA_ZERO_INIT     sdft[XYZ_AXIS_COUNT];
@@ -132,7 +132,7 @@ void gyroDataAnalyseInit(uint32_t targetLooptimeUs)
     sdftResolution = (float)sdftSampleRateHz / SDFT_SAMPLE_SIZE; // 13.3hz per bin at 8k
     sdftStartBin = MAX(2, lrintf(dynNotchMinHz / sdftResolution + 0.5f)); // can't use bin 0 because it is DC.
     sdftEndBin = MIN(SDFT_BIN_COUNT - 1, lrintf(dynNotchMaxHz / sdftResolution + 0.5f)); // can't use more than SDFT_BIN_COUNT bins.
-    smoothFactor = 2 * M_PIf * DYN_NOTCH_SMOOTH_HZ / (gyroLoopRateHz / 12); // minimum PT1 k value
+    smoothFactor = 2 * M_PIf * DYN_NOTCH_SMOOTH_HZ / (gyroLoopRateHz / DYN_NOTCH_CALC_TICKS); // minimum PT1 k value
 
     for (uint8_t axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
         sdftInit(&sdft[axis], sdftStartBin, sdftEndBin);
@@ -165,8 +165,6 @@ FAST_CODE void gyroDataAnalyse(gyroAnalyseState_t *state, biquadFilter_t *notchF
 {
     // samples should have been pushed by `gyroDataAnalysePush`
     // if gyro sampling is > 1kHz, accumulate and average multiple gyro samples
-    state->sampleCount++;
-    
     if (state->sampleCount == state->maxSampleCount) {
         state->sampleCount = 0;
 
@@ -177,18 +175,23 @@ FAST_CODE void gyroDataAnalyse(gyroAnalyseState_t *state, biquadFilter_t *notchF
             if (axis == 0) {
                 DEBUG_SET(DEBUG_FFT, 2, lrintf(sample));
             }
-
             state->oversampledGyroAccumulator[axis] = 0;
         }
 
         // We need DYN_NOTCH_CALC_TICKS tick to update all axis with newly sampled value
-        // recalculation of filters takes 4 calls per axis => each filter gets updated every DYN_NOTCH_CALC_TICKS calls
-        // at 8kHz gyro loop rate this means 8kHz / 4 / 3 = 666Hz => update every 1.5ms
-        // at 4kHz gyro loop rate this means 4kHz / 4 / 3 = 333Hz => update every 3ms
+        // recalculation of filters takes 3 calls per axis => each filter gets updated every DYN_NOTCH_CALC_TICKS calls
+        // at 8kHz gyro loop rate this means 8kHz / 3 / 3 = 888Hz => update every 1.13ms
+        // at 4kHz gyro loop rate this means 4kHz / 3 / 3 = 444Hz => update every 2.25ms
         state->updateTicks = DYN_NOTCH_CALC_TICKS;
     }
 
-    // calculate SDFT and update filters
+    // SDFT processing in batches to synchronize with downsampled data
+    for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        sdftPushBatch(&sdft[axis], state->downsampledGyroData[axis], state->maxSampleCount, state->sampleCount);
+    }
+    state->sampleCount++;
+
+    // Find frequency peak and update filters
     if (state->updateTicks > 0) {
         gyroDataAnalyseUpdate(state, notchFilterDyn, notchFilterDyn2);
         --state->updateTicks;
@@ -201,7 +204,6 @@ FAST_CODE void gyroDataAnalyse(gyroAnalyseState_t *state, biquadFilter_t *notchF
 static FAST_CODE_NOINLINE void gyroDataAnalyseUpdate(gyroAnalyseState_t *state, biquadFilter_t *notchFilterDyn, biquadFilter_t *notchFilterDyn2)
 {
     enum {
-        STEP_SDFT,
         STEP_WINDOW,
         STEP_CALC_FREQUENCIES,
         STEP_UPDATE_FILTERS,
@@ -215,14 +217,6 @@ static FAST_CODE_NOINLINE void gyroDataAnalyseUpdate(gyroAnalyseState_t *state, 
 
     DEBUG_SET(DEBUG_FFT_TIME, 0, state->updateStep);
     switch (state->updateStep) {
-        case STEP_SDFT:
-        {
-            sdftPush(&sdft[state->updateAxis], state->downsampledGyroData[state->updateAxis]);
-
-            DEBUG_SET(DEBUG_FFT_TIME, 1, micros() - startTime);
-
-            break;
-        }
         case STEP_WINDOW:
         {
             sdftWinSq(&sdft[state->updateAxis], sdftData);

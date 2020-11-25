@@ -18,8 +18,8 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Implementation of a Sliding Discrete Fourier Transform (SDFT).
-// Complexity for calculating frequency spectrum with N bins is O(N).
+ // Implementation of a Sliding Discrete Fourier Transform (SDFT).
+ // Complexity for calculating frequency spectrum with N bins is O(N).
 
 #pragma once
 
@@ -45,6 +45,7 @@ STATIC_ASSERT(SDFT_SAMPLE_SIZE <= (uint8_t)-1, window_size_greater_than_underlyi
 
 void sdftInit(sdft_t *sdft, const uint8_t startBin, const uint8_t endBin);
 void sdftPush(sdft_t *sdft, const float sample);
+void sdftPushBatch(sdft_t* sdft, const float sample, const uint8_t numBlocks, const uint8_t blockIdx);
 void sdftMagSq(const sdft_t *dsft, float *output);
 void sdftMagnitude(const sdft_t *dsft, float *output);
 void sdftWinSq(const sdft_t *sdft, float *output);
