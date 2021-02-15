@@ -68,17 +68,17 @@ static FAST_CODE void GYRO_FILTER_FUNCTION_NAME(void)
         if (isDynamicFilterActive()) {
             if (axis == gyro.gyroDebugAxis) {
                 GYRO_FILTER_DEBUG_SET(DEBUG_FFT, 0, lrintf(gyroADCf));
-                GYRO_FILTER_DEBUG_SET(DEBUG_FFT_FREQ, 2, lrintf(gyroADCf));
+                GYRO_FILTER_DEBUG_SET(DEBUG_FFT_FREQ, 3, lrintf(gyroADCf));
                 GYRO_FILTER_DEBUG_SET(DEBUG_DYN_LPF, 0, lrintf(gyroADCf));
             }
 
             gyroDataAnalysePush(&gyro.gyroAnalyseState, axis, gyroADCf);
-            gyroADCf = gyro.notchFilterDynApplyFn((filter_t *)&gyro.notchFilterDyn[axis], gyroADCf);
-            gyroADCf = gyro.notchFilterDynApplyFn2((filter_t *)&gyro.notchFilterDyn2[axis], gyroADCf);
-            
+            for (uint8_t p = 0; p < gyro.notchFilterDynCount; p++) {
+                gyroADCf = gyro.notchFilterDynApplyFn((filter_t*)&gyro.notchFilterDyn[axis][p], gyroADCf);
+            }
+
             if (axis == gyro.gyroDebugAxis) {
                 GYRO_FILTER_DEBUG_SET(DEBUG_FFT, 1, lrintf(gyroADCf));
-                GYRO_FILTER_DEBUG_SET(DEBUG_FFT_FREQ, 3, lrintf(gyroADCf));
                 GYRO_FILTER_DEBUG_SET(DEBUG_DYN_LPF, 3, lrintf(gyroADCf));
             }
         }

@@ -20,9 +20,9 @@
 
 #pragma once
 
-#include "arm_math.h"
+// #include "arm_math.h"
 
-#include "common/filter.h"
+#define DYN_NOTCH_COUNT_MAX 5
 
 typedef struct gyroAnalyseState_s {
 
@@ -40,12 +40,12 @@ typedef struct gyroAnalyseState_s {
     uint8_t updateStep;
     uint8_t updateAxis;
 
-    float centerFreq[XYZ_AXIS_COUNT];
+    float centerFreq[XYZ_AXIS_COUNT][DYN_NOTCH_COUNT_MAX];
 
 } gyroAnalyseState_t;
 
 void gyroDataAnalyseStateInit(gyroAnalyseState_t *state, uint32_t targetLooptimeUs);
-void gyroDataAnalysePush(gyroAnalyseState_t *state, const int axis, const float sample);
-void gyroDataAnalyse(gyroAnalyseState_t *state, biquadFilter_t *notchFilterDyn, biquadFilter_t *notchFilterDyn2);
+void gyroDataAnalysePush(gyroAnalyseState_t *state, const uint8_t axis, const float sample);
+void gyroDataAnalyse(gyroAnalyseState_t *state);
 uint16_t getMaxFFT(void);
 void resetMaxFFT(void);
