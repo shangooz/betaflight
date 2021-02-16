@@ -1777,7 +1777,6 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
         sbufWriteU8(dst, 0);
 #endif
 #if defined(USE_GYRO_DATA_ANALYSE)
-        // Added in MSP API 1.44
         sbufWriteU8(dst, gyroConfig()->dyn_notch_count);
         sbufWriteU16(dst, gyroConfig()->dyn_notch_bandwidth_hz);
 #else
@@ -2646,17 +2645,14 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
             sbufReadU16(src);
 #endif
         }
-        if (sbufBytesRemaining(src) >= 1) {
+        if (sbufBytesRemaining(src) >= 4) {
             // Added in MSP API 1.44
 #if defined(USE_DYN_LPF)
             currentPidProfile->dyn_lpf_curve_expo = sbufReadU8(src);
 #else
             sbufReadU8(src);
 #endif
-        }
-        if (sbufBytesRemaining(src) >= 1) {
 #if defined(USE_GYRO_DATA_ANALYSE)
-            // Added in MSP API 1.44
             gyroConfigMutable()->dyn_notch_count = sbufReadU8(src);
             gyroConfigMutable()->dyn_notch_bandwidth_hz = sbufReadU16(src);
 #else
