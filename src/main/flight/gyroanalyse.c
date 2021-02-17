@@ -371,7 +371,7 @@ static FAST_CODE_NOINLINE void gyroDataAnalyseUpdate(gyroAnalyseState_t *state)
             state->updateAxis = (state->updateAxis + 1) % XYZ_AXIS_COUNT;
         }
     }
-    
+
     state->updateStep = (state->updateStep + 1) % STEP_COUNT;
 }
 
