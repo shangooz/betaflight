@@ -239,7 +239,7 @@ static FAST_CODE_NOINLINE void gyroDataAnalyseUpdate(gyroAnalyseState_t *state)
             }
             sdftMeanSq /= sdftEndBin - sdftStartBin - 1;
 
-            DEBUG_SET(DEBUG_FFT_TIME, 0, micros() - startTime);
+            DEBUG_SET(DEBUG_FFT_TIME, 1, micros() - startTime);
 
             break;
         }

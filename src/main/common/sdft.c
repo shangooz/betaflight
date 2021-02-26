@@ -18,6 +18,7 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <math.h>
 #include <stdbool.h>
 
 #include "platform.h"
@@ -146,10 +147,10 @@ FAST_CODE void sdftWindow(const sdft_t *sdft, float *output)
 }
 
 
-// Apply fast square root approximation to the whole sdft range
+// Apply square root to the whole sdft range
 static FAST_CODE void applySqrt(const sdft_t *sdft, float *data)
 {
     for (uint8_t i = sdft->startBin; i <= sdft->endBin; i++) {
-        data[i] = sqrt_approx(data[i]);
+        data[i] = sqrtf(data[i]);
     }
 }
